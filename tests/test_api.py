@@ -213,3 +213,10 @@ async def test_post_treatment_error(api: nightscout.Api):
         response.post("http://testns.example.com/api/v1/treatments", status=401)
         with pytest.raises(ClientResponseError):
             await api.post_treatment({"eventType": "Note"})
+
+
+def test_treatment_insulin_injections():
+    raw = '[{"insulin": "Humalog", "units": 5}]'
+    t = nightscout.Treatment(eventType="Correction Bolus", insulin=5, insulinInjections=raw)
+    assert t.insulinInjections == raw
+    assert nightscout.Treatment(eventType="Note").insulinInjections is None

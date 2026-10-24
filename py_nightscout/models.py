@@ -108,6 +108,7 @@ class Treatment(BaseModel):
         enteredBy (string): The person who gave the treatment if entered in Care Portal, or the device that fetched the treatment from the pump.
         glucose (int): Glucose value for a BG check, in mg/dl.
         notes (string): Free text note attached to the treatment.
+        insulinInjections (string): JSON-encoded list of the insulin injections recorded for this treatment, as sent by the uploader (for example '[{"insulin": "Humalog", "units": 5}]'). It is kept as the raw string and not parsed.
     """
 
     def __init__(self, **kwargs):
@@ -133,6 +134,7 @@ class Treatment(BaseModel):
             "foodType": None,
             "absorptionTime": None,
             "notes": None,
+            "insulinInjections": None,
         }
 
         for (param, default) in self.param_defaults.items():
