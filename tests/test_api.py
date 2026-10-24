@@ -151,3 +151,72 @@ async def test_latest_devices_status(api: nightscout.Api):
         )
         assert 69 == devices_status["samsung SM-N986B"].uploader.battery
         assert "PHONE" == devices_status["samsung SM-N986B"].uploader.type
+
+
+@pytest.mark.asyncio
+async def test_post_treatments(api: nightscout.Api):
+    treatment = {
+        "eventType": "Meal Bolus",
+        "carbs": 30,
+        "enteredBy": "py-nightscout",
+        "created_at": "2017-03-07T09:38:35Z",
+    }
+    note = {
+        "eventType": "Note",
+        "notes": "Pizza",
+        "enteredBy": "py-nightscout",
+        "created_at": "2017-03-07T09:40:00Z",
+    }
+    with aioresponses() as response:
+        response.post(
+            "http://testns.example.com/api/v1/treatments",
+            payload=[
+                {"_id": "58be816483ab6d6632419690", **treatment},
+                {"_id": "58be816483ab6d6632419691", **note},
+            ],
+        )
+        treatments = await api.post_treatments([treatment, note])
+        assert 2 == len(treatments)
+        assert "Meal Bolus" == treatments[0].eventType
+        assert 30 == treatments[0].carbs
+        assert "Pizza" == treatments[1].notes
+        timestamp = datetime(2017, 3, 7, 9, 38, 35, tzinfo=tzutc())
+        assert timestamp == treatments[0].created_at
+        request = list(response.requests.values())[0][0]
+        assert [treatment, note] == request.kwargs["json"]
+
+
+@pytest.mark.asyncio
+async def test_post_treatment_with_secret():
+    api = nightscout.Api("http://testns.example.com", api_secret="secret")
+    treatment = {"eventType": "Correction Bolus", "insulin": 1.5}
+    with aioresponses() as response:
+        response.post(
+            "http://testns.example.com/api/v1/treatments",
+            payload=[{"_id": "58be816483ab6d6632419692", **treatment}],
+        )
+        result = await api.post_treatment(treatment)
+        assert "Correction Bolus" == result.eventType
+        assert 1.5 == result.insulin
+        request = list(response.requests.values())[0][0]
+        assert (
+            "e5e9fa1ba31ecd1ae84f75caaa474f3a663f05f4"
+            == request.kwargs["headers"]["api-secret"]
+        )
+
+
+@pytest.mark.asyncio
+async def test_post_treatment_error(api: nightscout.Api):
+    from aiohttp import ClientResponseError
+
+    with aioresponses() as response:
+        response.post("http://testns.example.com/api/v1/treatments", status=401)
+        with pytest.raises(ClientResponseError):
+            await api.post_treatment({"eventType": "Note"})
+
+
+def test_treatment_insulin_injections():
+    raw = '[{"insulin": "Humalog", "units": 5}]'
+    t = nightscout.Treatment(eventType="Correction Bolus", insulin=5, insulinInjections=raw)
+    assert t.insulinInjections == raw
+    assert nightscout.Treatment(eventType="Note").insulinInjections is None
